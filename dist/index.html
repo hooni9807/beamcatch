@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f5ed"><meta name="description" content="작은 빛, 새로운 모험. beamrpg의 친구들을 만나고 모으는 레트로 탐험 RPG, beamcatch.">
+  <title>beamcatch — 작은 빛, 새로운 모험</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="header">
+    <a href="./" class="brand" aria-label="beamcatch 홈"><span class="beam-ball" aria-hidden="true"></span>beamcatch<span class="brand-star">✦</span></a>
+    <nav aria-label="게임 메뉴"><button class="nav-button active" data-view="field"><span>⌘</span> 탐험</button><button class="nav-button" data-view="dex"><span>▤</span> 빔몬 도감 <small id="nav-count">01</small></button><button class="nav-button" data-view="team"><span>♧</span> 나의 동료</button><button class="nav-button" data-view="bag"><span>▱</span> 가방</button></nav>
+    <div class="header-tools"><span id="save-status" class="save-status"><i></i> 자동 저장 중</span><button class="icon-button" id="sound-button" title="소리 켜기" aria-label="소리 켜기" aria-pressed="false">♪<span class="sound-slash">/</span></button><button class="icon-button" data-view="settings" aria-label="설정" title="설정">⚙</button></div>
+  </header>
+  <main>
+    <section class="intro"><div><div class="eyebrow"><span></span> A LITTLE WORLD, A NEW ADVENTURE</div><h1>오늘은 어떤 친구를 만날까<span>?</span></h1><p>익숙한 설렘, 새로운 얼굴들. 우리만의 작은 모험이 시작됩니다.</p></div><button class="region-link" data-view="map"><span class="map-icon">⌖</span><span><small>현재 탐험 지역</small><strong id="region-heading">새빛 마을 <b>↗</b></strong></span></button></section>
+    <div class="game-layout">
+      <section class="field-column" aria-label="탐험 화면">
+        <div class="game-console">
+          <div class="console-top"><span><i></i> BEAM WORLD <b>/</b> <span id="field-code">FIELD 01</span></span><span class="live-label">YOUR ADVENTURE IS HERE <span>✦</span></span></div>
+          <div class="viewport" id="viewport">
+            <canvas id="world" width="960" height="576" tabindex="0" aria-label="탐험 지도. 방향키 또는 WASD로 이동하고 E키로 대화하세요."></canvas>
+            <div class="map-hud"><div class="location-chip"><span>⌖</span><strong id="location-label">새빛 마을</strong><small id="location-sub">바람이 머무는 첫 번째 길</small></div><button class="time-chip" id="time-button" title="낮과 밤 바꾸기" aria-label="낮과 밤 바꾸기">☀ <span id="time-label">낮</span></button></div>
+            <div class="map-bottom"><span class="grass-tip"><i></i> 풀숲에서 새로운 친구를 만나보세요</span><button id="fullscreen-button" class="map-tool" title="화면 확대" aria-label="화면 확대">⛶</button></div>
+            <section class="battle" id="battle" hidden aria-label="야생 빔몬과 전투">
+              <div class="battle-caption"><span>✦ WILD ENCOUNTER</span><button id="battle-help" aria-label="포획 도움말">?</button></div>
+              <div class="enemy-stat battle-stat"><div><strong id="enemy-name"></strong><span id="enemy-level"></span></div><div class="hp-row"><b>HP</b><div class="hp-track"><i id="enemy-hp"></i></div></div><small id="enemy-hp-text"></small></div>
+              <div class="battle-platform enemy-platform"></div><img id="enemy-image" class="battle-creature enemy-image" alt=""><div id="capture-effect" hidden><span class="beam-ball"></span><span class="capture-spark">✦</span></div>
+              <div class="battle-platform partner-platform"></div><img id="partner-image" class="battle-creature partner-image" alt="">
+              <div class="partner-stat battle-stat"><div><strong id="partner-name"></strong><span id="partner-level"></span></div><div class="hp-row"><b>HP</b><div class="hp-track"><i id="partner-hp"></i></div></div><small id="partner-hp-text"></small></div>
+              <div class="battle-floor"></div>
+            </section>
+          </div>
+          <div class="dialogue-panel"><div class="guide-avatar"><img id="guide-image" src="./assets/heebeom-face.png" alt="희범"></div><div class="dialogue-text"><span id="speaker">함께 걷는 희범 <i>GUIDE</i></span><p id="dialogue" aria-live="polite">저 풀숲에서 소리가 들려! 우리 같이 가볼까?</p></div><button class="primary-button" id="explore-button">주변 탐색 <span>↗</span></button><div class="battle-actions" id="battle-actions" hidden><button data-action="attack">⚔ <span>기술<small>랠리 샷</small></span></button><button data-action="catch" class="catch-action"><span class="beam-ball tiny"></span><span>포획<small id="battle-ball-count">빔볼 12</small></span></button><button data-action="potion">✚ <span>회복<small id="battle-potion-count">상처약 3</small></span></button><button data-action="run">↗ <span>도망<small>다음 기회에</small></span></button></div></div>
+        </div>
+        <div class="control-strip"><div><span class="control-key">↑</span><span class="control-key">←</span><span class="control-key">↓</span><span class="control-key">→</span><span class="control-desc">또는 WASD 이동</span><span class="control-divider"></span><span class="control-key">E</span><span class="control-desc">대화 / 조사</span></div><span class="control-note">천천히 걸어도 괜찮아.</span></div>
+        <div class="mobile-controls"><div class="dpad"><button data-dir="up" aria-label="위로 이동">↑</button><button data-dir="left" aria-label="왼쪽 이동">←</button><button data-dir="down" aria-label="아래로 이동">↓</button><button data-dir="right" aria-label="오른쪽 이동">→</button></div><button id="interact-button">대화 / 조사 <b>E</b></button></div>
+        <section class="habitat-section"><div class="section-heading"><h2>이곳에서 만날 친구들 <span id="habitat-count">3</span></h2><button data-view="dex">도감 살펴보기 <span>↗</span></button></div><div class="habitat-list" id="habitat-list"></div></section>
+      </section>
+      <aside class="sidebar">
+        <section class="partner-card"><div class="card-heading"><span><i class="green-dot"></i> 나의 파트너</span><button data-view="team" aria-label="동료 변경">⇄</button></div><div class="partner-portrait"><div class="portrait-orbit"></div><span class="portrait-spark s1">✦</span><span class="portrait-spark s2">✧</span><img id="side-portrait" src="./assets/heebeom-face.png" alt="희범"><span class="partner-number" id="partner-number">NO. 001</span></div><div class="partner-title"><h2 id="side-name">희범</h2><span id="side-type" class="type-pill">빛</span><span id="side-level">Lv. 5</span></div><div class="side-hp-label"><span>HP</span><b id="side-hp-text">48 / 48</b></div><div class="hp-track side-hp"><i id="side-hp"></i></div><div class="xp-row"><span>다음 레벨까지</span><span id="side-xp">0 / 30 EXP</span></div><div class="xp-track"><i id="side-xp-bar"></i></div><div class="team-preview" id="team-preview"></div><button class="text-button heal-button" id="heal-button">✚ 마을에서 쉬어가기 <span>↗</span></button></section>
+        <section class="quest-card"><div class="quest-overline">FIELD NOTES <span>✧</span></div><h2 id="quest-title">친구가 되는 첫걸음</h2><p id="quest-description">새로운 빔몬을 3번 포획해 보세요.<br>작은 만남이 큰 모험이 될 거예요.</p><div class="quest-progress-label"><span>포획 기록</span><strong id="quest-progress">0 <small>/ 3</small></strong></div><div class="quest-bars"><i></i><i></i><i></i></div><div class="quest-reward" id="quest-reward"><span>완료 보상</span><b>빔볼 × 5 · 80 G</b></div><button id="claim-button" hidden>보상 받기 ↗</button></section>
+        <section class="supplies"><div class="card-heading"><span>모험 준비물</span><button data-view="bag" aria-label="가방 열기">↗</button></div><div class="supply-items"><button data-view="bag"><span class="beam-ball tiny"></span><strong id="ball-count">12</strong><small>빔볼</small></button><button data-view="bag"><span class="potion-icon">✚</span><strong id="potion-count">3</strong><small>상처약</small></button><button data-view="bag"><span class="coin-icon">G</span><strong id="coin-count">120</strong><small>골드</small></button></div></section>
+        <div class="sidebar-note"><span>✦</span><p>만나는 모든 친구에게<br>저마다의 이야기가 있어요.</p></div>
+      </aside>
+    </div>
+    <footer><span class="footer-brand">beamcatch <span>© 2026</span></span><span>작은 빛을 모아, 우리만의 모험.</span><button data-view="about">이 모험에 대하여 ↗</button></footer>
+  </main>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <dialog id="modal"><div class="modal-header"><div><span class="eyebrow" id="modal-eyebrow">BEAM WORLD</span><h2 id="modal-title"></h2></div><button id="close-modal" class="close-button" aria-label="닫기">✕</button></div><div id="modal-body"></div></dialog>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
