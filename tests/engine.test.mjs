@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { Game, catchChance } from '../dist/engine.js';
-import { CREATURES } from '../dist/creatures.js';
+import { Game, catchChance, typeMultiplier } from '../dist/engine.js';
+import { CREATURES, TYPE_STRENGTHS } from '../dist/creatures.js';
 
 function memoryStorage() {
   const values = new Map();
@@ -179,4 +179,183 @@ assert.equal(full.state.box.length, 0);
 assert.equal(full.state.caught, 0);
 assert.equal(full.state.questClaimed, false);
 assert.equal(full.state.balls, 12);
-console.log('Engine tests passed: encounters, catches, inventory, party, XP, recovery, save validation, reset.');
+
+assert.equal(CREATURES.length, 36);
+assert.equal(new Set(CREATURES.map(creature => creature.id)).size, 36);
+assert.equal(CREATURES.filter(creature => creature.form === 'base').length, 12);
+assert.equal(CREATURES.filter(creature => creature.form === 'evolved').length, 12);
+assert.equal(CREATURES.filter(creature => creature.form === 'variant').length, 12);
+
+// Choose the midpoint of every weighted interval: every eligible friend must be reachable.
+const reachable = new Set();
+for (const region of ['meadow', 'lake', 'ruins']) {
+  for (const period of ['day', 'night']) {
+    const candidates = CREATURES.filter(creature => creature.habitats.includes(region)
+      && creature.encounterWeight > 0 && ['any', period].includes(creature.activeTime));
+    const total = candidates.reduce((sum, creature) => sum + creature.encounterWeight, 0);
+    assert.ok(total > 0);
+    let intervalStart = 0;
+    for (const creature of candidates) {
+      const roll = (intervalStart + creature.encounterWeight / 2) / total;
+      const encounter = new Game({ storage: null, random: () => roll });
+      assert.equal(encounter.encounter(region, period).type, 'encounter');
+      assert.equal(encounter.battle.enemy.speciesId, creature.id);
+      assert.notEqual(creature.form, 'evolved');
+      reachable.add(creature.id);
+      intervalStart += creature.encounterWeight;
+    }
+    const last = new Game({ storage: null, random: () => 1 - Number.EPSILON });
+    last.encounter(region, period);
+    assert.equal(last.battle.enemy.speciesId, candidates.at(-1).id);
+  }
+}
+assert.deepEqual(reachable, new Set(CREATURES.filter(creature => creature.form !== 'evolved').map(creature => creature.id)));
+assert.equal(reachable.size, 24);
+assert.ok(CREATURES.some(creature => creature.activeTime === 'night'));
+assert.ok(CREATURES.some(creature => creature.activeTime === 'day'));
+for (const creature of CREATURES.filter(creature => creature.form === 'evolved')) {
+  assert.deepEqual(creature.habitats, []);
+  assert.equal(creature.encounterWeight, 0);
+}
+const invalidEncounter = new Game({ storage: null });
+const untouchedState = structuredClone(invalidEncounter.state);
+assert.equal(invalidEncounter.encounter('meadow', 'dawn').type, 'error');
+assert.equal(invalidEncounter.encounter('unknown', 'night').type, 'error');
+assert.equal(invalidEncounter.battle, null);
+assert.deepEqual(invalidEncounter.state, untouchedState);
+
+const expectedStrengths = {
+  불꽃: '풀', 풀: '물', 물: '불꽃', 전기: '바람', 바람: '강철',
+  강철: '얼음', 얼음: '전기', 빛: '그림자', 그림자: '꿈', 꿈: '빛',
+};
+assert.deepEqual(TYPE_STRENGTHS, expectedStrengths);
+for (const [attacker, defender] of Object.entries(expectedStrengths)) {
+  assert.equal(typeMultiplier(attacker, defender), 1.5);
+  assert.equal(typeMultiplier(defender, attacker), 0.75);
+  assert.equal(typeMultiplier(attacker, attacker), 1);
+}
+assert.equal(typeMultiplier('빛', '물'), 1);
+assert.equal(typeMultiplier('unknown', '물'), 1);
+
+// Validate real damage on both sides, including resisted attacks and neutral matchups.
+for (const [friendId, enemyId, playerMultiplier, enemyMultiplier] of [
+  ['heebeom', 'percival', 1.5, 0.75],
+  ['percival', 'heebeom', 0.75, 1.5],
+  ['heebeom', 'hugo', 1, 1],
+]) {
+  const match = new Game({ storage: null, random: () => 0 });
+  const friend = CREATURES.find(creature => creature.id === friendId);
+  const opponent = CREATURES.find(creature => creature.id === enemyId);
+  Object.assign(match.active(), { speciesId: friendId, level: 10, maxHp: friend.baseHp + 30, hp: friend.baseHp + 30 });
+  match.battle = { enemy: { speciesId: enemyId, level: 10, hp: opponent.baseHp + 30, maxHp: opponent.baseHp + 30 }, turn: 0 };
+  const playerHp = match.active().hp;
+  const enemyHp = match.battle.enemy.hp;
+  const result = match.action('attack');
+  assert.equal(result.type, 'attack');
+  assert.equal(result.playerMultiplier, playerMultiplier);
+  assert.equal(result.enemyMultiplier, enemyMultiplier);
+  assert.equal(enemyHp - match.battle.enemy.hp, Math.round(Math.round(friend.attack + 8) * playerMultiplier));
+  assert.equal(playerHp - match.active().hp, Math.round(Math.round(opponent.attack * 0.55) * enemyMultiplier));
+  assert.ok(result.message.includes(friend.move));
+  assert.ok(result.message.includes(opponent.move));
+  if (playerMultiplier !== 1) {
+    assert.match(result.message, /효과가 굉장/);
+    assert.match(result.message, /효과가 약/);
+  }
+  match.battle.enemy.hp = 1;
+  const winningBlow = match.action('attack');
+  assert.equal(winningBlow.type, 'victory');
+  assert.equal(winningBlow.playerMultiplier, playerMultiplier);
+  assert.equal(winningBlow.enemyMultiplier, undefined);
+}
+
+const evolutionStorage = memoryStorage();
+const evolution = new Game({ storage: evolutionStorage, random: () => 0 });
+const beforeEvolution = structuredClone(evolution.state);
+assert.equal(evolution.evolve('missing').type, 'error');
+assert.equal(evolution.evolve(evolution.active().uid).type, 'error');
+assert.deepEqual(evolution.state, beforeEvolution);
+evolution.encounter('meadow');
+assert.equal(evolution.evolve(evolution.active().uid).type, 'error');
+evolution.action('run');
+evolution.gainXp(9 * 12 + 8 * 12 + 7 * 12 + 6 * 12 + 5 * 12 + 17);
+assert.equal(evolution.active().level, 10);
+assert.equal(evolution.active().speciesId, 'heebeom');
+evolution.active().hp -= 23;
+const oldMember = { ...evolution.active() };
+const evolvedSpecies = CREATURES.find(creature => creature.id === 'heebeom-evolved');
+const evolutionResult = evolution.evolve(oldMember.uid);
+assert.equal(evolutionResult.type, 'evolve');
+assert.equal(evolutionResult.from, 'heebeom');
+assert.equal(evolutionResult.to, evolvedSpecies.id);
+assert.equal(evolutionResult.uid, oldMember.uid);
+assert.equal(evolution.active().speciesId, evolvedSpecies.id);
+assert.equal(evolution.active().uid, oldMember.uid);
+assert.equal(evolution.active().level, oldMember.level);
+assert.equal(evolution.active().xp, oldMember.xp);
+assert.equal(evolution.active().maxHp, evolvedSpecies.baseHp + 30);
+assert.equal(evolution.active().maxHp - evolution.active().hp, oldMember.maxHp - oldMember.hp);
+assert.deepEqual(evolution.state.collection, ['heebeom', evolvedSpecies.id]);
+assert.deepEqual(evolution.state.seen, ['heebeom', evolvedSpecies.id]);
+const afterEvolution = structuredClone(evolution.state);
+assert.notEqual(evolution.evolve(oldMember.uid).type, 'evolve');
+assert.deepEqual(evolution.state, afterEvolution);
+assert.deepEqual(new Game({ storage: evolutionStorage }).state, evolution.state);
+
+const boxedBase = CREATURES.find(creature => creature.id === 'sleepy');
+evolution.state.box.push({ uid: 'beam-2', speciesId: boxedBase.id, level: 14,
+  hp: boxedBase.baseHp + 42 - 9, maxHp: boxedBase.baseHp + 42, xp: 31 });
+evolution.state.nextUid = 3;
+evolution.state.collection.push(boxedBase.id);
+evolution.state.seen.push(boxedBase.id);
+assert.equal(evolution.evolve('beam-2').type, 'evolve');
+assert.equal(evolution.state.box[0].speciesId, 'sleepy-evolved');
+assert.equal(evolution.state.box[0].uid, 'beam-2');
+assert.equal(evolution.state.box[0].maxHp - evolution.state.box[0].hp, 9);
+assert.equal(evolution.state.box[0].xp, 31);
+assert.equal(evolution.state.party.length, 1);
+assert.equal(evolution.state.activeUid, 'beam-1');
+assert.deepEqual(new Game({ storage: evolutionStorage }).state, evolution.state);
+
+// A literal v1 save protects historical stats and earned progress from catalog changes.
+const v1Fixture = {
+  version: 1,
+  party: [
+    { uid: 'beam-1', speciesId: 'heebeom', level: 21, hp: 98, maxHp: 111, xp: 41 },
+    { uid: 'beam-2', speciesId: 'sleepy', level: 4, hp: 36, maxHp: 70, xp: 4 },
+  ],
+  box: [{ uid: 'beam-9', speciesId: 'percival', level: 11, hp: 62, maxHp: 77, xp: 42 }],
+  collection: ['heebeom', 'ajae', 'sleepy', 'leesin', 'percival', 'hugo', 'drunk'],
+  seen: ['heebeom', 'ajae', 'sleepy', 'leesin', 'percival', 'hugo', 'drunk'],
+  activeUid: 'beam-1', nextUid: 10, balls: 16, potions: 5, coins: 555,
+  steps: 203, caught: 25, questClaimed: true, position: { x: 12, y: 8, region: 'lake' },
+};
+const v1Storage = memoryStorage();
+v1Storage.setItem('beamcatch-v1', JSON.stringify(v1Fixture));
+const v1Loaded = new Game({ storage: v1Storage });
+assert.deepEqual(v1Loaded.state, v1Fixture);
+assert.equal(v1Loaded.evolve('beam-1').type, 'evolve');
+assert.equal(v1Loaded.active().level, 21);
+assert.equal(v1Loaded.active().xp, 41);
+assert.equal(v1Loaded.active().maxHp - v1Loaded.active().hp, 13);
+assert.equal(v1Loaded.state.balls, 16);
+assert.equal(v1Loaded.state.coins, 555);
+assert.equal(v1Loaded.state.caught, 25);
+assert.equal(v1Loaded.state.questClaimed, true);
+assert.deepEqual(v1Loaded.state.collection.slice(0, 7), v1Fixture.collection);
+assert.deepEqual(v1Loaded.state.box, v1Fixture.box);
+assert.deepEqual(new Game({ storage: v1Storage }).state, v1Loaded.state);
+
+const completeStorage = memoryStorage();
+const complete = new Game({ storage: completeStorage });
+const allMembers = CREATURES.map((creature, index) => ({ uid: `beam-${index + 1}`, speciesId: creature.id,
+  level: 10, hp: creature.baseHp + 30, maxHp: creature.baseHp + 30, xp: 1 }));
+Object.assign(complete.state, { party: allMembers.slice(0, 6), box: allMembers.slice(6),
+  collection: CREATURES.map(creature => creature.id), seen: CREATURES.map(creature => creature.id), nextUid: 43 });
+assert.equal(complete.save(), true);
+assert.deepEqual(new Game({ storage: completeStorage }).state, complete.state);
+const variant = complete.state.box.find(member => CREATURES.find(creature => creature.id === member.speciesId).form === 'variant');
+assert.notEqual(complete.evolve(variant.uid).type, 'evolve');
+assert.deepEqual(new Game({ storage: completeStorage }).state, complete.state);
+
+console.log('Engine tests passed: 36 species, day/night encounters, type damage, evolution, v1 saves, catches, inventory, party, XP, recovery, reset.');

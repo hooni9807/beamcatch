@@ -2,9 +2,10 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f6f5ed"><meta name="description" content="작은 빛, 새로운 모험. beamrpg의 친구들을 만나고 모으는 레트로 탐험 RPG, beamcatch.">
+  <meta name="theme-color" content="#f6f5ed"><meta name="description" content="beamrpg와 spin-tt의 친구들이 36종의 빔몬으로! 속성 전투, 레벨 10 진화, 낮과 밤의 희귀 변종을 만나는 탐험 RPG.">
   <title>beamcatch — 작은 빛, 새로운 모험</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./expansion.css">
 </head>
 <body>
   <header class="header">
@@ -13,7 +14,8 @@
     <div class="header-tools"><span id="save-status" class="save-status"><i></i> 자동 저장 중</span><button class="icon-button" id="sound-button" title="소리 켜기" aria-label="소리 켜기" aria-pressed="false">♪<span class="sound-slash">/</span></button><button class="icon-button" data-view="settings" aria-label="설정" title="설정">⚙</button></div>
   </header>
   <main>
-    <section class="intro"><div><div class="eyebrow"><span></span> A LITTLE WORLD, A NEW ADVENTURE</div><h1>오늘은 어떤 친구를 만날까<span>?</span></h1><p>익숙한 설렘, 새로운 얼굴들. 우리만의 작은 모험이 시작됩니다.</p></div><button class="region-link" data-view="map"><span class="map-icon">⌖</span><span><small>현재 탐험 지역</small><strong id="region-heading">새빛 마을 <b>↗</b></strong></span></button></section>
+    <section class="intro"><div><div class="eyebrow"><span></span> SECOND ADVENTURE · 36 BEAMMON</div><h1>우리의 모험이 더 커졌어<span>!</span></h1><p>새로운 얼굴, 새로운 빛. 36종의 친구와 함께 진화하는 모험.</p></div><button class="region-link" data-view="map"><span class="map-icon">⌖</span><span><small>현재 탐험 지역</small><strong id="region-heading">새빛 마을 <b>↗</b></strong></span></button></section>
+    <div class="expansion-note"><span>✦ <strong>확장 도감</strong> 기본형 12 · 진화형 12 · 희귀 변종 12</span><button data-view="dex">36종 만나보기 ↗</button></div>
     <div class="game-layout">
       <section class="field-column" aria-label="탐험 화면">
         <div class="game-console">
@@ -23,11 +25,13 @@
             <div class="map-hud"><div class="location-chip"><span>⌖</span><strong id="location-label">새빛 마을</strong><small id="location-sub">바람이 머무는 첫 번째 길</small></div><button class="time-chip" id="time-button" title="낮과 밤 바꾸기" aria-label="낮과 밤 바꾸기">☀ <span id="time-label">낮</span></button></div>
             <div class="map-bottom"><span class="grass-tip"><i></i> 풀숲에서 새로운 친구를 만나보세요</span><button id="fullscreen-button" class="map-tool" title="화면 확대" aria-label="화면 확대">⛶</button></div>
             <section class="battle" id="battle" hidden aria-label="야생 빔몬과 전투">
-              <div class="battle-caption"><span>✦ WILD ENCOUNTER</span><button id="battle-help" aria-label="포획 도움말">?</button></div>
-              <div class="enemy-stat battle-stat"><div><strong id="enemy-name"></strong><span id="enemy-level"></span></div><div class="hp-row"><b>HP</b><div class="hp-track"><i id="enemy-hp"></i></div></div><small id="enemy-hp-text"></small></div>
+              <div class="battle-caption"><span>✦ WILD ENCOUNTER</span><span id="battle-matchup"></span><button id="battle-help" aria-label="포획 도움말">?</button></div>
+              <div class="enemy-stat battle-stat"><div><strong id="enemy-name"></strong><span id="enemy-level"></span></div><p class="battle-type" id="enemy-type"></p><div class="hp-row"><b>HP</b><div class="hp-track"><i id="enemy-hp"></i></div></div><small id="enemy-hp-text"></small></div>
+              <div class="battle-aura enemy-aura" id="enemy-aura"></div><span class="battle-form enemy-form" id="enemy-form"></span>
+              <div class="battle-aura partner-aura" id="partner-aura"></div><span class="battle-form partner-form" id="partner-form"></span>
               <div class="battle-platform enemy-platform"></div><img id="enemy-image" class="battle-creature enemy-image" alt=""><div id="capture-effect" hidden><span class="beam-ball"></span><span class="capture-spark">✦</span></div>
               <div class="battle-platform partner-platform"></div><img id="partner-image" class="battle-creature partner-image" alt="">
-              <div class="partner-stat battle-stat"><div><strong id="partner-name"></strong><span id="partner-level"></span></div><div class="hp-row"><b>HP</b><div class="hp-track"><i id="partner-hp"></i></div></div><small id="partner-hp-text"></small></div>
+              <div class="partner-stat battle-stat"><div><strong id="partner-name"></strong><span id="partner-level"></span></div><p class="battle-type" id="partner-type"></p><div class="hp-row"><b>HP</b><div class="hp-track"><i id="partner-hp"></i></div></div><small id="partner-hp-text"></small></div>
               <div class="battle-floor"></div>
             </section>
           </div>
@@ -35,7 +39,7 @@
         </div>
         <div class="control-strip"><div><span class="control-key">↑</span><span class="control-key">←</span><span class="control-key">↓</span><span class="control-key">→</span><span class="control-desc">또는 WASD 이동</span><span class="control-divider"></span><span class="control-key">E</span><span class="control-desc">대화 / 조사</span></div><span class="control-note">천천히 걸어도 괜찮아.</span></div>
         <div class="mobile-controls"><div class="dpad"><button data-dir="up" aria-label="위로 이동">↑</button><button data-dir="left" aria-label="왼쪽 이동">←</button><button data-dir="down" aria-label="아래로 이동">↓</button><button data-dir="right" aria-label="오른쪽 이동">→</button></div><button id="interact-button">대화 / 조사 <b>E</b></button></div>
-        <section class="habitat-section"><div class="section-heading"><h2>이곳에서 만날 친구들 <span id="habitat-count">3</span></h2><button data-view="dex">도감 살펴보기 <span>↗</span></button></div><div class="habitat-list" id="habitat-list"></div></section>
+        <section class="habitat-section"><div class="section-heading"><h2>이곳에서 만날 친구들 <span id="habitat-count"></span></h2><button data-view="dex">도감 살펴보기 <span>↗</span></button></div><p id="habitat-note" class="habitat-note"></p><div class="habitat-list" id="habitat-list"></div></section>
       </section>
       <aside class="sidebar">
         <section class="partner-card"><div class="card-heading"><span><i class="green-dot"></i> 나의 파트너</span><button data-view="team" aria-label="동료 변경">⇄</button></div><div class="partner-portrait"><div class="portrait-orbit"></div><span class="portrait-spark s1">✦</span><span class="portrait-spark s2">✧</span><img id="side-portrait" src="./assets/heebeom-face.png" alt="희범"><span class="partner-number" id="partner-number">NO. 001</span></div><div class="partner-title"><h2 id="side-name">희범</h2><span id="side-type" class="type-pill">빛</span><span id="side-level">Lv. 5</span></div><div class="side-hp-label"><span>HP</span><b id="side-hp-text">48 / 48</b></div><div class="hp-track side-hp"><i id="side-hp"></i></div><div class="xp-row"><span>다음 레벨까지</span><span id="side-xp">0 / 30 EXP</span></div><div class="xp-track"><i id="side-xp-bar"></i></div><div class="team-preview" id="team-preview"></div><button class="text-button heal-button" id="heal-button">✚ 마을에서 쉬어가기 <span>↗</span></button></section>

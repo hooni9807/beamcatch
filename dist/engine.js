@@ -1,4 +1,4 @@
-import { CREATURES } from './creatures.js';
+import { CREATURES, TYPE_STRENGTHS } from './creatures.js';
 
 const STORAGE_KEY = 'beamcatch-v1';
 const SPECIES = new Map(CREATURES.map(creature => [creature.id, creature]));
@@ -65,6 +65,15 @@ export function catchChance(enemy, creature) {
   return Math.min(0.92, (creature.rarity === 'rare' ? 0.14 : 0.3) + weakened * 0.62);
 }
 
+export function typeMultiplier(attackerType, defenderType) {
+  if (TYPE_STRENGTHS[attackerType] === defenderType) return 1.5;
+  if (TYPE_STRENGTHS[defenderType] === attackerType) return 0.75;
+  return 1;
+}
+
+const effectiveness = multiplier => multiplier > 1 ? ' 효과가 굉장했어요!'
+  : multiplier < 1 ? ' 효과가 약했어요.' : '';
+
 export class Game {
   constructor(options = {}) {
     this.random = options.random ?? Math.random;
@@ -91,14 +100,17 @@ export class Game {
     }
   }
 
-  encounter(region = this.state.position.region) {
+  encounter(region = this.state.position.region, period = 'day') {
     if (this.battle) return { type: 'error', message: '먼저 눈앞의 친구와 만남을 마쳐 주세요.', ended: false };
     if (!REGIONS.includes(region)) return { type: 'error', message: '이곳에서는 친구를 만날 수 없어요.', ended: false };
+    if (!['day', 'night'].includes(period)) return { type: 'error', message: '낮이나 밤을 선택해 주세요.', ended: false };
+    const candidates = CREATURES.filter(creature => creature.habitats.includes(region)
+      && creature.encounterWeight > 0 && (creature.activeTime === 'any' || creature.activeTime === period));
+    if (!candidates.length) return { type: 'error', message: '지금 이곳에는 야생 친구가 없어요.', ended: false };
     if (this.active().hp <= 0) this.heal();
-    const candidates = CREATURES.filter(creature => creature.habitats.includes(region));
-    const total = candidates.reduce((sum, creature) => sum + (creature.rarity === 'rare' ? 0.45 : 1), 0);
+    const total = candidates.reduce((sum, creature) => sum + creature.encounterWeight, 0);
     let roll = this.random() * total;
-    const creature = candidates.find(candidate => (roll -= candidate.rarity === 'rare' ? 0.45 : 1) < 0) ?? candidates.at(-1);
+    const creature = candidates.find(candidate => (roll -= candidate.encounterWeight) < 0) ?? candidates.at(-1);
     const level = ({ meadow: 3, lake: 5, ruins: 7 })[region] + Math.floor(this.random() * 4);
     const maxHp = hpFor(creature.id, level);
     this.battle = { enemy: { speciesId: creature.id, level, hp: maxHp, maxHp }, turn: 0 };
@@ -126,6 +138,7 @@ export class Game {
     if (!this.battle) return { type: 'info', message: '풀숲을 걸으며 새로운 친구를 찾아보세요.', ended: true };
     const { enemy } = this.battle;
     const creature = SPECIES.get(enemy.speciesId);
+    const multipliers = {};
 
     if (kind === 'run') {
       this.battle = null;
@@ -159,10 +172,12 @@ export class Game {
       }
       message = `${creature.name}${particle(creature.name, '이', '가')} 빔볼에서 빠져나왔어요!`;
     } else if (kind === 'attack') {
-      const damage = Math.max(4, Math.round(friend.attack + member.level * 1.3 - enemy.level * 0.5) + Math.floor(this.random() * 5));
+      multipliers.playerMultiplier = typeMultiplier(friend.type, creature.type);
+      const baseDamage = Math.max(4, Math.round(friend.attack + member.level * 1.3 - enemy.level * 0.5) + Math.floor(this.random() * 5));
+      const damage = Math.max(1, Math.round(baseDamage * multipliers.playerMultiplier));
       enemy.hp = Math.max(0, enemy.hp - damage);
       this.battle.turn += 1;
-      message = `${friend.name}의 랠리 샷! ${damage}의 피해를 줬어요.`;
+      message = `${friend.name}의 ${friend.move}! ${damage}의 피해를 줬어요.${effectiveness(multipliers.playerMultiplier)}`;
       if (enemy.hp === 0) {
         const xp = 18 + enemy.level * 4;
         const coins = 12 + enemy.level * 2;
@@ -172,7 +187,7 @@ export class Game {
         this.save();
         message += ` 상대가 물러났어요. 경험치 +${xp}, 코인 +${coins}.`;
         if (levelUp) message += ` ${friend.name} 레벨 ${member.level}!`;
-        return { type: 'victory', message, ended: true, levelUp };
+        return { type: 'victory', message, ended: true, levelUp, ...multipliers };
       }
     } else if (kind === 'potion') {
       this.battle.turn += 1;
@@ -180,18 +195,20 @@ export class Game {
       return { type: 'error', message: '사용할 행동을 선택해 주세요.', ended: false };
     }
 
-    const damage = Math.max(4, Math.round((creature.attack + enemy.level - member.level) * 0.55) + Math.floor(this.random() * 4));
+    multipliers.enemyMultiplier = typeMultiplier(creature.type, friend.type);
+    const baseDamage = Math.max(4, Math.round((creature.attack + enemy.level - member.level) * 0.55) + Math.floor(this.random() * 4));
+    const damage = Math.max(1, Math.round(baseDamage * multipliers.enemyMultiplier));
     member.hp = Math.max(0, member.hp - damage);
-    message += ` ${creature.name}의 반격! ${damage}의 피해를 받았어요.`;
+    message += ` ${creature.name}의 ${creature.move}! ${damage}의 피해를 받았어요.${effectiveness(multipliers.enemyMultiplier)}`;
     if (member.hp === 0) {
       this.battle = null;
       this.state.position = { ...HOME };
       for (const ally of [...this.state.party, ...this.state.box]) ally.hp = ally.maxHp;
       this.save();
-      return { type: 'defeat', message: '친구가 지쳤어요. 새빛마을에서 푹 쉬고 모두 건강해졌어요!', ended: true };
+      return { type: 'defeat', message: `${message} 친구가 지쳤어요. 새빛마을에서 푹 쉬고 모두 건강해졌어요!`, ended: true, ...multipliers };
     }
     this.save();
-    return { type: kind, message, ended: false };
+    return { type: kind, message, ended: false, ...multipliers };
   }
 
   gainXp(amount) {
@@ -206,6 +223,26 @@ export class Game {
     }
     if (member.level === 100) member.xp = Math.min(member.xp, 1199);
     return member.level > previousLevel;
+  }
+
+  evolve(uid) {
+    if (this.battle) return { type: 'error', message: '만남을 마친 뒤 진화할 수 있어요.', ended: false };
+    const member = [...this.state.party, ...this.state.box].find(ally => ally.uid === uid);
+    if (!member) return { type: 'error', message: '파티나 보관함에 있는 친구를 선택해 주세요.', ended: true };
+    const from = SPECIES.get(member.speciesId);
+    const to = SPECIES.get(from.evolvesTo);
+    if (!to) return { type: 'info', message: '이 친구는 현재 모습으로 모험을 이어가요.', ended: true };
+    if (member.level < from.evolutionLevel) return { type: 'error', message: `레벨 ${from.evolutionLevel}부터 진화할 수 있어요.`, ended: true };
+    const maxHp = hpFor(to.id, member.level);
+    member.hp = Math.max(0, Math.min(maxHp, member.hp + maxHp - member.maxHp));
+    member.maxHp = maxHp;
+    member.speciesId = to.id;
+    for (const key of ['collection', 'seen']) {
+      for (const id of [from.id, to.id]) if (!this.state[key].includes(id)) this.state[key].push(id);
+    }
+    this.save();
+    return { type: 'evolve', message: `${from.name}${particle(from.name, '이', '가')} ${to.name}${particle(to.name, '으로', '로')} 진화했어요!`,
+      from: from.id, to: to.id, uid, ended: true };
   }
 
   heal() {
@@ -261,5 +298,6 @@ export class Game {
 }
 
 function particle(name, consonant, vowel) {
-  return (name.charCodeAt(name.length - 1) - 0xac00) % 28 ? consonant : vowel;
+  const ending = (name.charCodeAt(name.length - 1) - 0xac00) % 28;
+  return ending && !(consonant === '으로' && ending === 8) ? consonant : vowel;
 }
